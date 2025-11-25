@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Авторизация | ИИ-Бот поддержки</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js"></script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-900">
+    <div class="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
+        <div class="sm:mx-auto sm:w-full sm:max-w-sm">
+            <h2 class="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900 dark:text-white">
+                Вход в панель оператора
+            </h2>
+        </div>
+
+        <div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+            <div x-data="{ 
+                username: '', 
+                password: '', 
+                error: '',
+                loading: false,
+                login() {
+                    this.loading = true;
+                    this.error = '';
+                    
+                    fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            username: this.username,
+                            password: this.password
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.loading = false;
+                        if (data.token) {
+                            localStorage.setItem('token', data.token);
+                            localStorage.setItem('user', JSON.stringify(data.user));
+                            window.location.href = '/dashboard';
+                        } else {
+                            this.error = data.message || 'Ошибка авторизации';
+                        }
+                    })
+                    .catch(error => {
+                        this.loading = false;
+                        this.error = 'Ошибка сервера. Попробуйте позже.';
+                        console.error('Error:', error);
+                    });
+                }
+            }">
+                <form class="space-y-6" @submit.prevent="login">
+                    <div>
+                        <label for="username" class="form-label">Имя пользователя</label>
+                        <div class="mt-2">
+                            <input id="username" name="username" type="text" required x-model="username" 
+                                class="input-field" autocomplete="username">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <label for="password" class="form-label">Пароль</label>
+                        </div>
+                        <div class="mt-2">
+                            <input id="password" name="password" type="password" required x-model="password" 
+                                class="input-field" autocomplete="current-password">
+                        </div>
+                    </div>
+
+                    <div>
+                        <button type="submit" class="btn-primary w-full" :disabled="loading">
+                            <span x-show="!loading">Войти</span>
+                            <span x-show="loading" class="flex justify-center">
+                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Загрузка...
+                            </span>
+                        </button>
+                    </div>
+
+                    <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative dark:bg-red-900 dark:text-red-100" role="alert">
+                        <span class="block sm:inline" x-text="error"></span>
+                    </div>
+                </form>
+            </div>
+
+            <p class="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                ИИ-Бот поддержки &copy; 2025 | Made by yashkinSun
+            </p>
+        </div>
+    </div>
+</body>
+</html>

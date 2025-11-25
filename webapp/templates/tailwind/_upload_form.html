@@ -1,0 +1,46 @@
+<!-- форма загрузки документа; x-show контролируется во внешнем компоненте -->
+<div x-show="showUploadForm" class="card mb-6">
+    <h2 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Загрузка нового документа</h2>
+
+    <form @submit.prevent="uploadDocument" class="space-y-4">
+        <div>
+            <label for="upload-file" class="form-label">Файл</label>
+            <input id="upload-file" type="file"
+                   class="input-field"
+                   accept=".txt,.pdf,.doc,.docx,.csv,.xlsx"
+                   @change="handleFileChange">
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Поддерживаемые форматы: TXT, PDF, DOC/DOCX, CSV, XLSX
+            </p>
+        </div>
+
+        <div>
+            <label for="upload-name" class="form-label">Название</label>
+            <input id="upload-name" type="text" class="input-field" x-model="uploadName" required>
+        </div>
+
+        <div>
+            <label for="upload-description" class="form-label">Описание (опционально)</label>
+            <textarea id="upload-description" class="input-field" rows="3"
+                      x-model="uploadDescription"></textarea>
+        </div>
+
+        <!-- прогресс-бар -->
+        <div x-show="isUploading" class="mt-4">
+            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div class="bg-blue-600 h-2.5 rounded-full"
+                     :style="`width:${uploadProgress}%`"></div>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1"
+               x-text="`Загрузка: ${uploadProgress}%`"></p>
+        </div>
+
+        <div class="flex justify-end space-x-3">
+            <button type="button" class="btn-secondary" @click="showUploadForm=false">Отмена</button>
+            <button type="submit" class="btn-primary" :disabled="isUploading">
+                <span x-show="!isUploading">Загрузить</span>
+                <span x-show="isUploading">Загрузка…</span>
+            </button>
+        </div>
+    </form>
+</div>

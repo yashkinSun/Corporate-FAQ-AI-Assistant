@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статистика | ИИ-Бот поддержки</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-900" x-data="{
+    sidebarOpen: false,
+    darkMode: localStorage.getItem('darkMode') === 'true',
+    toggleDarkMode() {
+        this.darkMode = !this.darkMode;
+        localStorage.setItem('darkMode', this.darkMode);
+        document.documentElement.classList.toggle('dark', this.darkMode);
+    },
+    checkAuth() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login';
+        }
+    }
+}" x-init="checkAuth(); document.documentElement.classList.toggle('dark', darkMode)">
+    <div class="min-h-full">
+        <!-- Боковая панель навигации -->
+        {% include 'tailwind/partials/sidebar.html' %}
+
+        <div class="lg:pl-72">
+            <!-- Верхняя панель -->
+            {% include 'tailwind/partials/header.html' %}
+
+            <main class="py-10">
+                <div class="px-4 sm:px-6 lg:px-8">
+                    <div class="sm:flex sm:items-center">
+                        <div class="sm:flex-auto">
+                            <h1 class="text-2xl font-semibold leading-6 text-gray-900 dark:text-white">Статистика запросов</h1>
+                            <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                                Статистика запросов пользователей и ответов бота.
+                            </p>
+                        </div>
+                        <div class="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
+                            <button type="button" 
+                                    class="block rounded-md bg-indigo-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                                    @click="refreshStats()">
+                                Обновить данные
+                            </button>
+                        </div>
+                    </div>
+
+                    <div x-data="statisticsData()" x-init="loadStatistics()" class="mt-8">
+                        <!-- Карточки с основными метриками -->
+                        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">Всего запросов</dt>
+                                    <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white" x-text="totalRequests">-</dd>
+                                </div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">Запросов сегодня</dt>
+                                    <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white" x-text="todayRequests">-</dd>
+                                </div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">Уникальных пользователей</dt>
+                                    <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white" x-text="uniqueUsers">-</dd>
+                                </div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300 truncate">Среднее время ответа</dt>
+                                    <dd class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white" x-text="avgResponseTime + ' сек'">-</dd>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Графики -->
+                        <div class="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
+                            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-white">Запросы по дням</h3>
+                                    <div class="mt-4 h-80">
+                                        <canvas id="requestsChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-white">Популярные темы запросов</h3>
+                                    <div class="mt-4 h-80">
+                                        <canvas id="topicsChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Таблица последних запросов -->
+                        <div class="mt-8 bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+                            <div class="px-4 py-5 sm:p-6">
+                                <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-white">Последние запросы</h3>
+                                <div class="mt-4 flow-root">
+                                    <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                                        <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+                                            <table class="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
+                                                <thead>
+                                                    <tr>
+                                                        <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-0">Пользователь</th>
+                                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Запрос</th>
+                                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Время</th>
+                                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Статус</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
+                                                    <template x-for="request in recentRequests" :key="request.id">
+                                                        <tr>
+                                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 dark:text-white sm:pl-0" x-text="request.user_id"></td>
+                                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300" x-text="request.text"></td>
+                                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300" x-text="formatDate(request.timestamp)"></td>
+                                                            <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                                                <span :class="request.status === 'answered' ? 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30' : 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30'" class="inline-flex rounded-full px-2 text-xs font-semibold leading-5" x-text="request.status === 'answered' ? 'Отвечено' : 'В обработке'"></span>
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        function statisticsData() {
+            return {
+                totalRequests: 0,
+                todayRequests: 0,
+                uniqueUsers: 0,
+                avgResponseTime: 0,
+                recentRequests: [],
+                requestsChart: null,
+                topicsChart: null,
+                
+                loadStatistics() {
+                    fetch('/api/stats/dashboard')
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Network response was not ok');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            this.totalRequests = data.total_requests;
+                            this.todayRequests = data.today_requests;
+                            this.uniqueUsers = data.unique_users;
+                            this.avgResponseTime = data.avg_response_time.toFixed(2);
+                            this.recentRequests = data.recent_requests;
+                            
+                            this.initCharts(data);
+                        })
+                        .catch(error => {
+                            console.error('Error loading statistics:', error);
+                        });
+                },
+                
+                refreshStats() {
+                    this.loadStatistics();
+                },
+                
+                formatDate(timestamp) {
+                    return new Date(timestamp * 1000).toLocaleString();
+                },
+                
+                initCharts(data) {
+                    // Инициализация графика запросов по дням
+                    const requestsCtx = document.getElementById('requestsChart').getContext('2d');
+                    if (this.requestsChart) {
+                        this.requestsChart.destroy();
+                    }
+                    this.requestsChart = new Chart(requestsCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.daily_stats.map(item => item.date),
+                            datasets: [{
+                                label: 'Количество запросов',
+                                data: data.daily_stats.map(item => item.count),
+                                borderColor: 'rgb(79, 70, 229)',
+                                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                tension: 0.3,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        precision: 0
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Инициализация графика популярных тем
+                    const topicsCtx = document.getElementById('topicsChart').getContext('2d');
+                    if (this.topicsChart) {
+                        this.topicsChart.destroy();
+                    }
+                    this.topicsChart = new Chart(topicsCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: data.topics.map(item => item.name),
+                            datasets: [{
+                                data: data.topics.map(item => item.count),
+                                backgroundColor: [
+                                    'rgb(79, 70, 229)',
+                                    'rgb(16, 185, 129)',
+                                    'rgb(245, 158, 11)',
+                                    'rgb(239, 68, 68)',
+                                    'rgb(107, 114, 128)',
+                                    'rgb(124, 58, 237)'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right'
+                                }
+                            }
+                        }
+                    });
+                }
+            };
+        }
+    </script>
+</body>
+</html>

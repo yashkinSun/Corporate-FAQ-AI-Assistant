@@ -1,0 +1,61 @@
+<!-- общий список ссылок для боковой панели (используется и mobile, и desktop) -->
+<nav class="flex flex-1 flex-col">
+    <ul role="list" class="flex flex-1 flex-col gap-y-7">
+
+        <!-- основной раздел ссылок -->
+        <li>
+            <ul role="list" class="-mx-2 space-y-1">
+                <li><a href="/dashboard"        class="sidebar-item"><x-i-dashboard/></a></li>
+                <!-- Отключенные разделы согласно ТЗ:
+                <li><a href="/active-chats"     class="sidebar-item"><x-i-chat/></a></li>
+                <li><a href="/history"          class="sidebar-item"><x-i-history/></a></li>
+                <li><a href="/statistics"       class="sidebar-item"><x-i-stats/></a></li>
+                -->
+                <li><a href="/knowledge-base"   class="sidebar-item-active"><x-i-book/></a></li>
+            </ul>
+        </li>
+
+        <!-- низ панели (тема/выход) -->
+        <li class="mt-auto">
+            <a href="#" class="sidebar-item" @click.prevent="toggleDarkMode">
+                <template x-if="!darkMode"><x-i-sun/></template>
+                <template x-if="darkMode"><x-i-moon/></template>
+                <span x-text="darkMode ? 'Светлая тема' : 'Темная тема'"></span>
+            </a>
+
+            <a href="#" class="sidebar-item mt-2"
+               @click.prevent="localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.href='/login'">
+                <x-i-logout/> Выйти
+            </a>
+        </li>
+    </ul>
+</nav>
+
+<!-- мини-компоненты иконок (Tailwind + heroicons) -->
+<!-- можно вынести в отдельный файл, но для компактности оставлены здесь -->
+<template x-if="false">
+    <svg><x-slot name="i"/></svg>
+</template>
+<script>
+    /* глобально регистрируем короткие теги <x-i-…/>  */
+    document.addEventListener('alpine:init', () => {
+        const icons = {
+            'dashboard':  'M2.25 12l8.954-8.955…',
+            'chat':       'M8.625 12a.375.375…',
+            'history':    'M12 6v6h4.5…',
+            'book':       'M12 6.042A8.967…',
+            'stats':      'M3 13.125C3 12.504…',
+            'sun':        'M21.752 15.002A9.718…',
+            'moon':       'M12 3v2.25…',
+            'logout':     'M15.75 9V5.25…'
+        };
+        Object.entries(icons).forEach(([name, d]) => {
+            Alpine.directive(`i-${name}`, (el) => {
+                el.outerHTML = `<svg class="h-6 w-6 shrink-0 mr-3" fill="none"
+                                    viewBox="0 0 24 24" stroke-width="1.5"
+                                    stroke="currentColor"><path stroke-linecap="round"
+                                    stroke-linejoin="round" d="${d}"/></svg>`;
+            });
+        });
+    });
+</script>

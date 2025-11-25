@@ -1,0 +1,31 @@
+<header class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4
+               border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800
+               px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+
+    <!-- burger (mobile) -->
+    <button type="button" class="-m-2.5 p-2.5 text-gray-700 dark:text-gray-300 lg:hidden"
+            @click="sidebarOpen = true">
+        <span class="sr-only">Открыть меню</span>
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+             stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+        </svg>
+    </button>
+
+    <!-- заполнитель для flex -->
+    <div class="flex-1"></div>
+
+    <!-- правая часть (имя пользователя) -->
+    <div class="flex items-center gap-x-4 lg:gap-x-6">
+        <button type="button"
+                class="-m-1.5 flex items-center p-1.5 text-gray-700 dark:text-gray-300">
+            <span class="sr-only">Меню пользователя</span>
+            <span class="hidden lg:flex lg:items-center">
+                <span class="ml-4 text-sm font-semibold leading-6 text-gray-900 dark:text-white"
+                      x-text="JSON.parse(localStorage.getItem('user') || '{}').username || 'Пользователь'">
+                </span>
+            </span>
+        </button>
+    </div>
+</header>

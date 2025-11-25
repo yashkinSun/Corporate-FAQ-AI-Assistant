@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>История запросов | ИИ-Бот поддержки</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js"></script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-900" x-data="{ 
+    sidebarOpen: false,
+    darkMode: localStorage.getItem('darkMode') === 'true',
+    toggleDarkMode() {
+        this.darkMode = !this.darkMode;
+        localStorage.setItem('darkMode', this.darkMode);
+        document.documentElement.classList.toggle('dark', this.darkMode);
+    },
+    checkAuth() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login';
+        }
+    },
+    history: {
+        items: [],
+        loading: true,
+        error: null,
+        filters: {
+            startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            endDate: new Date().toISOString().split('T')[0],
+            interface: 'all',
+            query: ''
+        },
+        pagination: {
+            page: 1,
+            perPage: 10,
+            total: 0
+        },
+        async fetchHistory() {
+            this.loading = true;
+            try {
+                const token = localStorage.getItem('token');
+                const params = new URLSearchParams({
+                    page: this.pagination.page,
+                    per_page: this.pagination.perPage,
+                    start_date: this.filters.startDate,
+                    end_date: this.filters.endDate,
+                    interface: this.filters.interface !== 'all' ? this.filters.interface : '',
+                    query: this.filters.query
+                });
+                
+                const response = await fetch(`/api/history?${params.toString()}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        // Проверяем, есть ли информация о возможности обновления токена
+                        const data = await response.json();
+                        if (data.code === 'token_expired_refreshable' && data.new_access_token) {
+                            // Обновляем токен и повторяем запрос
+                            localStorage.setItem('token', data.new_access_token);
+                            return this.fetchHistory();
+                        } else {
+                            // Перенаправляем на страницу входа
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('user');
+                            window.location.href = '/login';
+                            return;
+                        }
+                    }
+                    throw new Error('Ошибка при получении истории запросов');
+                }
+                
+                const data = await response.json();
+                this.items = data.history;
+                this.pagination.total = data.total;
+                this.error = null;
+            } catch (error) {
+                console.error('Ошибка при получении истории запросов:', error);
+                this.error = 'Не удалось загрузить историю запросов. Пожалуйста, попробуйте позже.';
+                this.items = [];
+            } finally {
+                this.loading = false;
+            }
+        },
+        applyFilters() {
+            this.pagination.page = 1;
+            this.fetchHistory();
+        },
+        resetFilters() {
+            this.filters = {
+                startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                endDate: new Date().toISOString().split('T')[0],
+                interface: 'all',
+                query: ''
+            };
+            this.pagination.page = 1;
+            this.fetchHistory();
+        },
+        formatDate(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+        getStatusClass(status) {
+            switch (status) {
+                case 'answered':
+                    return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+                case 'escalated':
+                    return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+                case 'processing':
+                    return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+                default:
+                    return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+            }
+        },
+        getStatusText(status) {
+            switch (status) {
+                case 'answered':
+                    return 'Отвечено';
+                case 'escalated':
+                    return 'Эскалировано';
+                case 'processing':
+                    return 'В обработке';
+                default:
+                    return 'Неизвестно';
+            }
+        },
+        getInterfaceText(interface) {
+            switch (interface) {
+                case 'telegram':
+                    return 'Telegram';
+                case 'web':
+                    return 'Веб';
+                case 'api':
+                    return 'API';
+                default:
+                    return interface || 'Неизвестно';
+            }
+        },
+        nextPage() {
+            const maxPage = Math.ceil(this.pagination.total / this.pagination.perPage);
+            if (this.pagination.page < maxPage) {
+                this.pagination.page++;
+                this.fetchHistory();
+            }
+        },
+        prevPage() {
+            if (this.pagination.page > 1) {
+                this.pagination.page--;
+                this.fetchHistory();
+            }
+        },
+        get paginationInfo() {
+            const start = (this.pagination.page - 1) * this.pagination.perPage + 1;
+            const end = Math.min(start + this.pagination.perPage - 1, this.pagination.total);
+            return `${start}-${end} из ${this.pagination.total}`;
+        },
+        viewDetails(id) {
+            window.location.href = `/history/${id}`;
+        }
+    }
+}" x-init="checkAuth(); document.documentElement.classList.toggle('dark', darkMode); history.fetchHistory()">
+    
+    <!-- Боковая панель для мобильных устройств -->
+    <div x-show="sidebarOpen" class="relative z-50 lg:hidden" x-description="Off-canvas menu for mobile" role="dialog" aria-modal="true">
+        <div x-show="sidebarOpen" x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 bg-gray-900/80"></div>
+        
+        <div class="fixed inset-0 flex">
+            <div x-show="sidebarOpen" x-transition:enter="transition ease-in-out duration-300 transform" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="relative mr-16 flex w-full max-w-xs flex-1">
+                <div x-show="sidebarOpen" x-transition:enter="ease-in-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in-out duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute left-full top-0 flex w-16 justify-center pt-5">
+                    <button type="button" class="-m-2.5 p-2.5" @click="sidebarOpen = false">
+                        <span class="sr-only">Закрыть меню</span>
+                        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Содержимое боковой панели -->
+                <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-gray-800 px-6 pb-4">
+                    <div class="flex h-16 shrink-0 items-center">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">ИИ-Бот поддержки</h2>
+                    </div>
+                    <nav class="flex flex-1 flex-col">
+                        <ul role="list" class="flex flex-1 flex-col gap-y-7">
+                            <li>
+                                <ul role="list" class="-mx-2 space-y-1">
+                                    <li>
+                                        <a href="/dashboard" class="sidebar-item">
+                                            <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                                            </svg>
+                                            Панель управления
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="/active-chats" class="sidebar-item">
+                                            <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                                            </svg>
+                                            Активные чаты
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="/history" class="sidebar-item-active">
+                                            <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            История запросов
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="/knowledge-base" class="sidebar-item">
+                                            <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                                            </svg>
+                                            База знаний
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="/statistics" class="sidebar-item">
+                                            <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                            </svg>
+                                            Статистика
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="/profile" class="sidebar-item">
+                                            <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                            Профиль
+                                        </a>
+                                    </li>
+                                </ul>
+                            </li>
+                            <li class="mt-auto">
+                                <a href="#" class="sidebar-item" @click.prevent="toggleDarkMode">
+                                    <svg x-show="!darkMode" class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                                    </svg>
+                                    <svg x-show="darkMode" class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                                    </svg>
+                                    <span x-text="darkMode ? 'Светлая тема' : 'Темная тема'"></span>
+                                </a>
+                                <a href="#" class="sidebar-item mt-2" @click.prevent="localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.href = '/login'">
+                                    <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                                    </svg>
+                                    Выйти
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Статичная боковая панель для десктопа -->
+    <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+        <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 pb-4">
+            <div class="flex h-16 shrink-0 items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">ИИ-Бот поддержки</h2>
+            </div>
+            <nav class="flex flex-1 flex-col">
+                <ul role="list" class="flex flex-1 flex-col gap-y-7">
+                    <li>
+                        <ul role="list" class="-mx-2 space-y-1">
+                            <li>
+                                <a href="/dashboard" class="sidebar-item">
+                                    <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                                    </svg>
+                                    Панель управления
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/active-chats" class="sidebar-item">
+                                    <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                                    </svg>
+                                    Активные чаты
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/history" class="sidebar-item-active">
+                                    <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    История запросов
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/knowledge-base" class="sidebar-item">
+                                    <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                                    </svg>
+                                    База знаний
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/statistics" class="sidebar-item">
+                                    <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                    </svg>
+                                    Статистика
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/profile" class="sidebar-item">
+                                    <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    Профиль
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="mt-auto">
+                        <a href="#" class="sidebar-item" @click.prevent="toggleDarkMode">
+                            <svg x-show="!darkMode" class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                            </svg>
+                            <svg x-show="darkMode" class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                            </svg>
+                            <span x-text="darkMode ? 'Светлая тема' : 'Темная тема'"></span>
+                        </a>
+                        <a href="#" class="sidebar-item mt-2" @click.prevent="localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.href = '/login'">
+                            <svg class="h-6 w-6 shrink-0 mr-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                            </svg>
+                            Выйти
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+    
+    <!-- Основное содержимое -->
+    <div class="lg:pl-72">
+        <!-- Верхняя панель -->
+        <div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+            <button type="button" class="-m-2.5 p-2.5 text-gray-700 dark:text-gray-200 lg:hidden" @click="sidebarOpen = true">
+                <span class="sr-only">Открыть меню</span>
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
+            
+            <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+                <div class="flex flex-1 items-center">
+                    <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">История запросов</h1>
+                </div>
+                <div class="flex items-center gap-x-4 lg:gap-x-6">
+                    <div class="relative">
+                        <span class="text-sm text-gray-500 dark:text-gray-400" x-text="new Date().toLocaleDateString('ru-RU')"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <main class="py-10">
+            <div class="px-4 sm:px-6 lg:px-8">
+                <!-- Фильтры -->
+                <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label for="startDate" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Дата начала</label>
+                            <input type="date" id="startDate" x-model="history.filters.startDate" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="endDate" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Дата окончания</label>
+                            <input type="date" id="endDate" x-model="history.filters.endDate" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="interface" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Интерфейс</label>
+                            <select id="interface" x-model="history.filters.interface" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option value="all">Все</option>
+                                <option value="telegram">Telegram</option>
+                                <option value="web">Веб</option>
+                                <option value="api">API</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="query" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Поиск</label>
+                            <div class="mt-1 relative rounded-md shadow-sm">
+                                <input type="text" id="query" x-model="history.filters.query" placeholder="Поиск по запросам..." class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex justify-end space-x-3">
+                        <button type="button" @click="history.resetFilters()" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Сбросить
+                        </button>
+                        <button type="button" @click="history.applyFilters()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Применить
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Таблица с историей запросов -->
+                <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">ID</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Пользователь</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Запрос</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Дата</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Интерфейс</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Статус</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                <template x-if="history.loading">
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            <svg class="animate-spin h-5 w-5 mx-auto text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span class="mt-2 block">Загрузка...</span>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="!history.loading && history.error">
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-center text-sm text-red-500">
+                                            <span x-text="history.error"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="!history.loading && !history.error && history.items.length === 0">
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            Нет данных для отображения
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-for="item in history.items" :key="item.id">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" @click="history.viewDetails(item.id)">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white" x-text="item.id"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="item.user_id"></td>
+                                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                            <div class="max-w-xs truncate" x-text="item.query"></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="history.formatDate(item.timestamp)"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="history.getInterfaceText(item.interface)"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" :class="history.getStatusClass(item.status)" x-text="history.getStatusText(item.status)"></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                            <button type="button" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" @click.stop="history.viewDetails(item.id)">
+                                                Подробнее
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Пагинация -->
+                    <div class="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
+                        <div class="flex-1 flex justify-between sm:hidden">
+                            <button @click="history.prevPage()" :disabled="history.pagination.page <= 1" class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Назад
+                            </button>
+                            <button @click="history.nextPage()" :disabled="history.pagination.page >= Math.ceil(history.pagination.total / history.pagination.perPage)" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Вперед
+                            </button>
+                        </div>
+                        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm text-gray-700 dark:text-gray-300">
+                                    Показано <span class="font-medium" x-text="history.paginationInfo"></span> записей
+                                </p>
+                            </div>
+                            <div>
+                                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                    <button @click="history.prevPage()" :disabled="history.pagination.page <= 1" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <span class="sr-only">Предыдущая</span>
+                                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                        </svg>
+                                    </button>
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        <span x-text="history.pagination.page"></span>
+                                    </span>
+                                    <button @click="history.nextPage()" :disabled="history.pagination.page >= Math.ceil(history.pagination.total / history.pagination.perPage)" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <span class="sr-only">Следующая</span>
+                                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                        </svg>
+                                    </button>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

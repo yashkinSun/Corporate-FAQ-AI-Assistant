@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+.env
+secret.key
+bot_store.sqlite3

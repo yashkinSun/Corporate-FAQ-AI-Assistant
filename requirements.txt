@@ -1,0 +1,60 @@
+# Telegram Bot API
+python-telegram-bot==20.7
+
+# LangChain и интеграции с OpenAI
+langchain>=0.1.14
+langchain-openai>=0.0.5
+langchain-core>=0.1.7
+openai==1.14.3
+tiktoken==0.6.0
+
+# ChromaDB и хранение векторных данных
+chromadb==0.4.24
+duckdb==0.10.0
+
+# Парсинг документов
+PyPDF2==3.0.1
+python-docx==1.1.0
+openpyxl==3.1.2
+
+# Валидация и структуры данных
+pydantic==2.6.4
+
+# Переменные окружения
+python-dotenv==1.0.1
+
+# Логирование
+loguru==0.7.2
+
+# HTTP-запросы
+httpx~=0.25.2
+aiohttp==3.9.1
+
+# Веб-интерфейс
+Flask==2.3.3
+Flask-JWT-Extended==4.6.0
+PyJWT==2.8.0
+
+# База данных
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9
+
+# Безопасность
+bcrypt==4.1.2
+
+# Кэширование и rate-limiting
+redis==5.0.1
+
+# Тестирование
+pytest==7.4.0
+pytest-asyncio==0.21.1
+
+# Миграции БД 
+alembic>=1.9.0
+
+# Для скриптов и SQL адаптаций 
+psycopg2-binary>=2.9
+
+
+# Примечание: chart.js - это JavaScript библиотека, которая устанавливается через npm, а не pip
+# Она будет использоваться в веб-интерфейсе через CDN или локальные файлы
