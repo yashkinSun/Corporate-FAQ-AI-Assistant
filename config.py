@@ -80,6 +80,7 @@ class Settings(BaseModel):
     # Настройки для сообщений
     MAX_MESSAGE_LENGTH: int = Field(default=4000)
     CONFIDENCE_THRESHOLD: float = Field(default=0.7)
+    CONFIDENCE_BASELINE: float = Field(default=0.6)  # была удалена случайно
 
     # Поддерживаемые языки
     SUPPORTED_LANGUAGES: list[str] = Field(default_factory=lambda: ["ru", "en"])
@@ -277,6 +278,7 @@ ESCALATION_COOLDOWN_MINUTES = SETTINGS.ESCALATION_COOLDOWN_MINUTES
 # Настройки для сообщений
 MAX_MESSAGE_LENGTH = SETTINGS.MAX_MESSAGE_LENGTH
 CONFIDENCE_THRESHOLD = SETTINGS.CONFIDENCE_THRESHOLD
+CONFIDENCE_BASELINE = SETTINGS.CONFIDENCE_BASELINE  # <-- вернули
 
 # Поддерживаемые языки
 SUPPORTED_LANGUAGES = SETTINGS.SUPPORTED_LANGUAGES
