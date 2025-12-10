@@ -8,7 +8,19 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, func
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Float,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Text,
+    func,
+    Index,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 
@@ -22,6 +34,9 @@ Base = declarative_base()
 # Определяем модели
 class UserSession(Base):
     __tablename__ = 'sessions'
+    __table_args__ = (
+        Index('ix_sessions_user_id', 'user_id'),
+    )
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
@@ -37,6 +52,10 @@ class UserSession(Base):
 
 class Message(Base):
     __tablename__ = 'messages'
+    __table_args__ = (
+        Index('ix_messages_user_id', 'user_id'),
+        Index('ix_messages_session_id', 'session_id'),
+    )
     
     id = Column(Integer, primary_key=True)
     session_id = Column(Integer, ForeignKey('sessions.id'), nullable=False)
@@ -86,6 +105,9 @@ class SuspiciousInput(Base):
 
 class FollowupQuestion(Base):
     __tablename__ = 'followup_questions'
+    __table_args__ = (
+        Index('ix_followup_questions_message_id', 'message_id'),
+    )
     
     id = Column(Integer, primary_key=True)
     message_id = Column(Integer, ForeignKey('messages.id'), nullable=False)
@@ -113,6 +135,10 @@ class WebUser(Base):
 # Добавляем класс Chat, который используется в ops/routes.py
 class Chat(Base):
     __tablename__ = 'chats'
+    __table_args__ = (
+        Index('ix_chats_status', 'status'),
+        Index('ix_chats_user_id', 'user_id'),
+    )
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
