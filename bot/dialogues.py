@@ -92,11 +92,32 @@ async def followup_callback_handler(update: Update, context: ContextTypes.DEFAUL
     if not query.data.startswith("followup_"):
         return
 
-    selected_index = int(query.data.split("_")[1])
-    selected_text  = query.message.reply_markup.inline_keyboard[selected_index][0].text
+    try:
+        selected_index = int(query.data.split("_")[1])
+    except (ValueError, IndexError) as exc:
+        logger.warning("Invalid followup callback data: %s", query.data, exc_info=exc)
+        await query.message.reply_text(get_language_message('en', 'error_occurred'))
+        return
+
+    language = context.user_data.get("lang") or 'en'  # т.к. англ. чаще нужен как fallback
+
+    inline_keyboard = getattr(query.message.reply_markup, "inline_keyboard", None) if query.message.reply_markup else None
+    if not inline_keyboard or selected_index < 0 or selected_index >= len(inline_keyboard):
+        logger.warning(
+            "Inline keyboard missing or index out of range. data=%s, keyboard_present=%s", query.data, bool(inline_keyboard)
+        )
+        await query.message.reply_text(get_language_message(language, 'error_occurred'))
+        return
+
+    selected_row = inline_keyboard[selected_index]
+    if not selected_row:
+        logger.warning("Selected inline keyboard row is empty. data=%s", query.data)
+        await query.message.reply_text(get_language_message(language, 'error_occurred'))
+        return
+
+    selected_text = selected_row[0].text
 
     # Язык берём из user_data (записывается в handle_text_message)
-    language = context.user_data.get("lang") or 'en'  # т.к. англ. чаще нужен как fallback
 
     # Локализованный префикс «Ваш вопрос / Your question»
     prefix = get_language_message(language, 'question_prefix')
