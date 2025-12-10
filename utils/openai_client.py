@@ -2,10 +2,13 @@ import logging
 import math
 from typing import Dict, Any, Optional, Tuple, List
 
+import httpx
+import openai
+
 # Обновленные импорты для совместимости с новыми версиями LangChain
 from langchain_openai import ChatOpenAI
 
-from config import OPENAI_API_KEY, RERANKING_MODEL, CONFIDENCE_BASELINE
+from config import OPENAI_API_KEY, RERANKING_MODEL, CONFIDENCE_BASELINE, OPENAI_REQUEST_TIMEOUT
 from utils.response_validation import validate_response, sanitize_environment_variables, format_chat_messages
 
 logger = logging.getLogger(__name__)
@@ -33,7 +36,8 @@ class OpenAIClient:
         self.chat = ChatOpenAI(
             openai_api_key=self.api_key,
             model=self.model,
-            temperature=0.7
+            temperature=0.7,
+            timeout=OPENAI_REQUEST_TIMEOUT,
         )
         self.default_confidence = max(0.0, min(1.0, default_confidence))
 
@@ -71,6 +75,14 @@ class OpenAIClient:
 
             return response_text, confidence
             
+        except (openai.APITimeoutError, httpx.TimeoutException) as exc:
+            logger.error("OpenAI API call timed out: %s", exc)
+
+            fallback_response = "Извините, произошла ошибка при обработке вашего запроса." if language == 'ru' else \
+                               "Sorry, an error occurred while processing your request."
+
+            return fallback_response, 0.0
+
         except Exception as e:
             logger.error(f"Error in OpenAI API call: {e}")
             
@@ -165,10 +177,7 @@ def get_openai_client(model: str = RERANKING_MODEL):
     Returns:
         OpenAI: Клиент OpenAI
     """
-    import openai
-    from config import OPENAI_API_KEY
-    
     # Инициализируем клиент OpenAI
-    client = openai.OpenAI(api_key=OPENAI_API_KEY)
+    client = openai.OpenAI(api_key=OPENAI_API_KEY, timeout=OPENAI_REQUEST_TIMEOUT)
     
     return client

@@ -18,6 +18,11 @@ class Settings(BaseModel):
     # Базовые настройки
     TELEGRAM_BOT_TOKEN: str = Field(..., min_length=1, description="Токен Telegram-бота")
     OPENAI_API_KEY: str = Field(..., min_length=1, description="API-ключ OpenAI")
+    OPENAI_REQUEST_TIMEOUT: float = Field(
+        default=30.0,
+        gt=0,
+        description="Таймаут запросов к OpenAI в секундах",
+    )
     CHROMA_DB_PATH: str = Field(default="data/chroma_db")
     DOCUMENTS_PATH: str = Field(default="data/documents")
     FOLLOWUP_MAP_PATH: str = Field(default="data/followup_map.json")
@@ -153,6 +158,7 @@ def _collect_env() -> dict[str, str]:
     candidates = [
         "TELEGRAM_BOT_TOKEN",
         "OPENAI_API_KEY",
+        "OPENAI_REQUEST_TIMEOUT",
         "CHROMA_DB_PATH",
         "DOCUMENTS_PATH",
         "FOLLOWUP_MAP_PATH",
@@ -209,6 +215,7 @@ except ValidationError as exc:  # pragma: no cover - executed at startup
 # Базовые настройки
 TELEGRAM_BOT_TOKEN = SETTINGS.TELEGRAM_BOT_TOKEN
 OPENAI_API_KEY = SETTINGS.OPENAI_API_KEY
+OPENAI_REQUEST_TIMEOUT = SETTINGS.OPENAI_REQUEST_TIMEOUT
 CHROMA_DB_PATH = SETTINGS.CHROMA_DB_PATH
 DOCUMENTS_PATH = SETTINGS.DOCUMENTS_PATH
 FOLLOWUP_MAP_PATH = SETTINGS.FOLLOWUP_MAP_PATH
