@@ -288,7 +288,7 @@ def can_escalate(user_id: int) -> bool:
         return time_diff >= ESCALATION_COOLDOWN_MINUTES
 
 # Функции для работы с сообщениями
-def save_message(user_id: int, message_text: str, bot_response: str, 
+def save_message(user_id: int, message_text: str, bot_response: str,
                 confidence_score: Optional[float] = None, language: Optional[str] = None):
     """
     Сохраняет сообщение пользователя и ответ бота в базу данных
@@ -320,6 +320,28 @@ def save_message(user_id: int, message_text: str, bot_response: str,
         
         logger.debug(f"Saved message from user {user_id}")
         return new_message.id
+
+
+def get_recent_confidence_scores(user_id: int, limit: int = 5) -> List[float]:
+    """
+    Возвращает последние confidence_score пользователя из базы данных.
+
+    Args:
+        user_id: ID пользователя
+        limit: Максимальное количество оценок
+
+    Returns:
+        List[float]: Список confidence_score в порядке от новых к старым
+    """
+
+    with db_session() as db:
+        query = (
+            db.query(Message.confidence_score)
+            .filter(Message.user_id == user_id, Message.confidence_score.isnot(None))
+            .order_by(Message.timestamp.desc())
+            .limit(limit)
+        )
+        return [row[0] for row in query.all() if row[0] is not None]
 
 # Функции для работы с оценками и обратной связью
 def save_rating(session_id: int, rating: int) -> int:
