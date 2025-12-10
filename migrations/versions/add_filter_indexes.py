@@ -3,6 +3,12 @@
 from alembic import op
 import sqlalchemy as sa
 
+# --- Метаданные Миграции ---
+revision = '0002'
+down_revision = '0001'
+branch_labels = None
+depends_on = None
+# ---------------------------
 
 # Версия миграции: 0002
 # Описание: Добавление индексов для ускорения фильтрации и соединений

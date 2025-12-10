@@ -4,6 +4,13 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+# --- Метаданные Миграции ---
+revision = '0001'
+down_revision = None
+branch_labels = None
+depends_on = None
+# ---------------------------
+
 # Версия миграции: 0001
 # Описание: Расширение модели FollowupQuestion для хранения дополнительных данных
 

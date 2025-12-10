@@ -2,123 +2,122 @@ version: '3.8'
 
 services:
   # Redis for rate-limiting
-  redis:
-    image: redis:alpine
-    container_name: faqbot-redis
+  botvopros-redis:
+    image: redis:7-alpine
+    container_name: botvopros-redis
     restart: unless-stopped
-    ports:
-      - "16379:6379"
     volumes:
-      - redis_data:/data
+      - botvopros_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - n8n_default
+    # Не открываем порты наружу - только для внутреннего использования
 
   # PostgreSQL database
-  postgres:
-    image: postgres:14-alpine
-    container_name: faqbot-postgres
+  botvopros-postgres:
+    image: postgres:15-alpine
+    container_name: botvopros-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${PG_USER:-postgres}
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
-      POSTGRES_DB: ${PG_DB:-faqbot}
+      POSTGRES_USER: ${PG_USER:-botvopros_user}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-change_me_in_production}
+      POSTGRES_DB: ${PG_DB:-botvopros_db}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "15432:5432"
-    command: >
-      postgres 
-      -c max_connections=200
-      -c shared_buffers=256MB
-      -c effective_cache_size=1GB
-      -c maintenance_work_mem=64MB
-      -c checkpoint_completion_target=0.9
-      -c wal_buffers=16MB
-      -c default_statistics_target=100
-      -c random_page_cost=1.1
-      -c effective_io_concurrency=200
-      -c work_mem=4MB
-      -c min_wal_size=1GB
-      -c max_wal_size=4GB
-      -c log_connections=on
-      -c log_disconnections=on
-      -c log_lock_waits=on
-      -c log_statement=all
-      -c log_duration=on
-      -c log_min_duration_statement=1000
+      - botvopros_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-botvopros_user}"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - n8n_default
+    # Не открываем порты наружу - только для внутреннего использования
 
   # Telegram bot service
-  telegram:
+  botvopros-telegram:
     build:
-      context: .
+      context: /home/ubuntu/apps/chatbot/Botvoprosrelease
       dockerfile: Dockerfile
-    container_name: faqbot-telegram
+    container_name: botvopros-telegram
     restart: unless-stopped
     depends_on:
-      postgres:
+      botvopros-postgres:
         condition: service_healthy
-      redis:
+      botvopros-redis:
         condition: service_healthy
     environment:
       - RUN_MODE=telegram
-      - PG_HOST=postgres
+      - PG_HOST=botvopros-postgres
       - PG_PORT=5432
-      - PG_USER=${PG_USER:-postgres}
-      - PG_PASSWORD=${PG_PASSWORD:-postgres}
-      - PG_DB=${PG_DB:-faqbot}
-      - REDIS_HOST=redis
+      - PG_USER=${PG_USER:-botvopros_user}
+      - PG_PASSWORD=${PG_PASSWORD:-change_me_in_production}
+      - PG_DB=${PG_DB:-botvopros_db}
+      - REDIS_HOST=botvopros-redis
       - REDIS_PORT=6379
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - CRM_ENABLED=${CRM_ENABLED:-False}
+      - LOG_LEVEL=INFO
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - /home/ubuntu/apps/chatbot/Botvoprosrelease/data:/app/data
+      - /home/ubuntu/apps/chatbot/Botvoprosrelease/logs:/app/logs
     command: python run.py --mode telegram
+    networks:
+      - n8n_default
+    # Telegram бот не требует открытых портов - работает через webhook
 
   # Web interface service
-  web:
+  botvopros-web:
     build:
-      context: .
+      context: /home/ubuntu/apps/chatbot/Botvoprosrelease
       dockerfile: Dockerfile
-    container_name: faqbot-web
+    container_name: botvopros-web
     restart: unless-stopped
     depends_on:
-      postgres:
+      botvopros-postgres:
         condition: service_healthy
-      redis:
+      botvopros-redis:
         condition: service_healthy
     environment:
       - RUN_MODE=web
-      - PG_HOST=postgres
+      - PG_HOST=botvopros-postgres
       - PG_PORT=5432
-      - PG_USER=${PG_USER:-postgres}
-      - PG_PASSWORD=${PG_PASSWORD:-postgres}
-      - PG_DB=${PG_DB:-faqbot}
-      - REDIS_HOST=redis
+      - PG_USER=${PG_USER:-botvopros_user}
+      - PG_PASSWORD=${PG_PASSWORD:-change_me_in_production}
+      - PG_DB=${PG_DB:-botvopros_db}
+      - REDIS_HOST=botvopros-redis
       - REDIS_PORT=6379
       - WEB_HOST=0.0.0.0
       - WEB_PORT=5000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - CRM_ENABLED=${CRM_ENABLED:-False}
-    ports:
-      - "${WEB_PORT:-5000}:5000"
+      - LOG_LEVEL=INFO
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - /home/ubuntu/apps/chatbot/Botvoprosrelease/data:/app/data
+      - /home/ubuntu/apps/chatbot/Botvoprosrelease/logs:/app/logs
     command: python run.py --mode web
+    networks:
+      - n8n_default
+    labels:
+      # Traefik конфигурация для веб-интерфейса
+      - "traefik.enable=true"
+      - "traefik.http.routers.botvopros-web.rule=Host(`assistant.palmbit-servers.org`)"
+      - "traefik.http.routers.botvopros-web.entrypoints=web,websecure"
+      - "traefik.http.routers.botvopros-web.tls=true"
+      - "traefik.http.routers.botvopros-web.tls.certresolver=mydns"
+      - "traefik.http.services.botvopros-web.loadbalancer.server.port=5000"
 
 volumes:
-  postgres_data:
-  redis_data:
+  botvopros_postgres_data:
+  botvopros_redis_data:
+
+networks:
+  n8n_default:
+    external: true

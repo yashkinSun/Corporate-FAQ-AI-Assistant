@@ -67,7 +67,8 @@ def process_user_query(user_text: str, user_id: int, language: str = 'ru') -> Tu
             system_prompt=system_prompt,
             user_message=user_text,
             user_id=user_id,
-            language=language
+            language=language,
+            retrieved_docs=relevant_docs
         )
         
         return response, confidence

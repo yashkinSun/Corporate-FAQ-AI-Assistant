@@ -4,9 +4,8 @@
 Модуль для обработки сообщений в Telegram-боте.
 """
 import logging
-from collections import deque
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Deque
+import os
+from typing import Dict, Any, Optional, Tuple, List
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -20,8 +19,7 @@ from utils.rate_limit import telegram_rate_limit
 from storage.database_unified import (
     save_message,
     get_or_create_session,
-    can_escalate,
-    get_recent_confidence_scores,
+    can_escalate
 )
 from bot.dialogues import (
     create_followup_keyboard,
@@ -52,42 +50,7 @@ ESCALATION_KEYWORDS = [
 
 # Константы для отслеживания уверенности
 LOW_CONFIDENCE_THRESHOLD = 0.5
-CONFIDENCE_HISTORY_MAXLEN = 5
-CONFIDENCE_HISTORY_TTL = timedelta(hours=1)
-USER_CONFIDENCE_HISTORY: Dict[int, Dict[str, Any]] = {}
-
-
-def _cleanup_confidence_history(now: Optional[datetime] = None) -> None:
-    """Удаляет устаревшие записи истории уверенности."""
-
-    now = now or datetime.now()
-    stale_users = [
-        user_id
-        for user_id, entry in USER_CONFIDENCE_HISTORY.items()
-        if now - entry.get("last_access", now) > CONFIDENCE_HISTORY_TTL
-    ]
-    for user_id in stale_users:
-        USER_CONFIDENCE_HISTORY.pop(user_id, None)
-
-
-def _get_confidence_history(user_id: int) -> Deque[float]:
-    """Возвращает deque с историей уверенности пользователя с ограничением размера."""
-
-    now = datetime.now()
-    _cleanup_confidence_history(now)
-
-    if user_id not in USER_CONFIDENCE_HISTORY:
-        # Подгружаем последние значения из базы, чтобы избежать зависимости от глобального состояния
-        recent_scores = list(
-            reversed(get_recent_confidence_scores(user_id, limit=CONFIDENCE_HISTORY_MAXLEN))
-        )
-        USER_CONFIDENCE_HISTORY[user_id] = {
-            "scores": deque(recent_scores, maxlen=CONFIDENCE_HISTORY_MAXLEN),
-            "last_access": now,
-        }
-
-    USER_CONFIDENCE_HISTORY[user_id]["last_access"] = now
-    return USER_CONFIDENCE_HISTORY[user_id]["scores"]
+USER_CONFIDENCE_HISTORY: Dict[int, List[float]] = {}  # user_id -> list of recent confidence scores
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -163,12 +126,13 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Собственно обработка запроса
     rag_answer, confidence = process_user_query(sanitized_text, user_id, language)
 
-    # Сохраняем историю уровней уверенности с ограничением размера и TTL
-    confidence_history = _get_confidence_history(user_id)
-    confidence_history.append(confidence)
+    # Сохраняем историю уровней уверенности
+    USER_CONFIDENCE_HISTORY.setdefault(user_id, []).append(confidence)
+    if len(USER_CONFIDENCE_HISTORY[user_id]) > 3:
+        USER_CONFIDENCE_HISTORY[user_id].pop(0)
 
     # Определяем контекст низкой уверенности
-    low_count = sum(1 for c in confidence_history if c < LOW_CONFIDENCE_THRESHOLD)
+    low_count = sum(1 for c in USER_CONFIDENCE_HISTORY[user_id] if c < LOW_CONFIDENCE_THRESHOLD)
     context_low_confidence = low_count >= 2
 
     # Обработка по confidence
