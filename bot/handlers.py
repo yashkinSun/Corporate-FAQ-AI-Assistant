@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, Tuple, List
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from config import CONFIDENCE_THRESHOLD
+from config import CONFIDENCE_THRESHOLD, FOLLOWUP_ENABLED
 from utils.input_sanitization import sanitize_input, detect_language, is_supported_language
 from utils.language_detection import detect_and_set_language, get_language_message
 from utils.followup_manager import get_followup_suggestions
@@ -137,24 +137,26 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Обработка по confidence
     if confidence < CONFIDENCE_THRESHOLD:
-        # Показываем низкоуверенный ответ через стандартный хэндлер
-        # (замена «Думаю...» пока не применяется в этом сценарии)
+        # Для запросов вне базы знаний или с низкой уверенностью отвечаем безопасным шаблоном
+        rag_answer = get_language_message(language, 'offtopic_response')
         await low_confidence_handler(update, context, sanitized_text, rag_answer, confidence, language)
     else:
-        # Генерируем follow-up вопросы
-        followups = get_followup_suggestions(
-            sanitized_text,
-            rag_answer,
-            language,
-            context_low_confidence
-        )
-        if len(followups) == 1 and (
-            "can't provide" in followups[0].lower()
-            or "не могу предложить" in followups[0].lower()
-        ):
-            reply_markup = None
-        else:
-            reply_markup = create_followup_keyboard(followups, language)
+        reply_markup = None
+        if FOLLOWUP_ENABLED:
+            # Генерируем follow-up вопросы
+            followups = get_followup_suggestions(
+                sanitized_text,
+                rag_answer,
+                language,
+                context_low_confidence
+            )
+            if len(followups) == 1 and (
+                "can't provide" in followups[0].lower()
+                or "не могу предложить" in followups[0].lower()
+            ):
+                reply_markup = None
+            elif followups:
+                reply_markup = create_followup_keyboard(followups, language)
 
         # Заменяем «Думаю...» на итоговый ответ
         await thinking_indicator.stop(

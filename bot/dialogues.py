@@ -4,7 +4,12 @@ from typing import List
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from config import SUPPORTED_LANGUAGES, ESCALATION_COOLDOWN_MINUTES
+from config import (
+    ESCALATION_COOLDOWN_MINUTES,
+    FOLLOWUP_ENABLED,
+    SUPPORTED_LANGUAGES,
+    CONFIDENCE_THRESHOLD,
+)
 from utils.followup_manager import get_followup_suggestions
 from utils.message_utils import truncate_message
 from storage.database_unified import can_escalate, get_or_create_session
@@ -89,6 +94,9 @@ async def followup_callback_handler(update: Update, context: ContextTypes.DEFAUL
     query = update.callback_query
     await query.answer()
 
+    if not FOLLOWUP_ENABLED:
+        return
+
     if not query.data.startswith("followup_"):
         return
 
@@ -127,8 +135,9 @@ async def followup_callback_handler(update: Update, context: ContextTypes.DEFAUL
     response, confidence = process_user_query(selected_text, user_id, language=language)
     await query.message.reply_text(truncate_message(response))
 
-    if confidence < 0.7:
-        await low_confidence_handler(update, context, selected_text, response, confidence, language)
+    if confidence < CONFIDENCE_THRESHOLD:
+        fallback_answer = get_language_message(language, 'offtopic_response')
+        await low_confidence_handler(update, context, selected_text, fallback_answer, confidence, language)
         return
 
     from bot.handlers import USER_CONFIDENCE_HISTORY, LOW_CONFIDENCE_THRESHOLD
@@ -137,14 +146,19 @@ async def followup_callback_handler(update: Update, context: ContextTypes.DEFAUL
         low_cnt = sum(c < LOW_CONFIDENCE_THRESHOLD for c in USER_CONFIDENCE_HISTORY[user_id])
         context_low_conf = low_cnt >= 2
 
+    if not FOLLOWUP_ENABLED:
+        return
+
     followups = get_followup_suggestions(selected_text, response, language, context_low_conf)
 
     if len(followups) == 1 and (
         "can't provide" in followups[0].lower() or "не могу предложить" in followups[0].lower()
     ):
         reply_markup = None
-    else:
+    elif followups:
         reply_markup = create_followup_keyboard(followups, language)
+    else:
+        reply_markup = None
 
     prompt = get_language_message(language, 'followup_prompt')
     await query.message.reply_text(prompt, reply_markup=reply_markup)

@@ -61,6 +61,7 @@ class Settings(BaseModel):
     CRM_LOG_PATH: str = Field(default="logs/crm_events.log")
 
     # Настройки для follow-up
+    FOLLOWUP_ENABLED: bool = Field(default=True)
     FOLLOWUP_MODE: str = Field(default="map")  # 'map' или 'llm'
     FOLLOWUP_LLM_MODEL: str = Field(default="gpt-4o-mini")
 
@@ -84,7 +85,7 @@ class Settings(BaseModel):
 
     # Настройки для сообщений
     MAX_MESSAGE_LENGTH: int = Field(default=4000)
-    CONFIDENCE_THRESHOLD: float = Field(default=0.7)
+    CONFIDENCE_THRESHOLD: float = Field(default=0.65)
     CONFIDENCE_BASELINE: float = Field(default=0.6)  # была удалена случайно
 
     # Поддерживаемые языки
@@ -183,6 +184,7 @@ def _collect_env() -> dict[str, str]:
         "CRM_ENABLED",
         "CRM_ENDPOINT",
         "CRM_LOG_PATH",
+        "FOLLOWUP_ENABLED",
         "FOLLOWUP_MODE",
         "FOLLOWUP_LLM_MODEL",
         "RERANKING_ENABLED",
@@ -261,6 +263,7 @@ CRM_ENDPOINT = SETTINGS.CRM_ENDPOINT
 CRM_LOG_PATH = SETTINGS.CRM_LOG_PATH
 
 # Настройки для follow-up
+FOLLOWUP_ENABLED = SETTINGS.FOLLOWUP_ENABLED
 FOLLOWUP_MODE = SETTINGS.FOLLOWUP_MODE  # 'map' или 'llm'
 FOLLOWUP_LLM_MODEL = SETTINGS.FOLLOWUP_LLM_MODEL
 

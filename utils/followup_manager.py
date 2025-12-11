@@ -5,7 +5,7 @@
 import logging
 from typing import List
 
-from config import FOLLOWUP_MODE
+from config import FOLLOWUP_ENABLED, FOLLOWUP_MODE
 from utils.followup_llm import generate_followup_questions
 from utils.followup_suggestions import (
     load_followup_map,
@@ -44,6 +44,10 @@ def get_followup_suggestions(
     """
     Возвращает список follow-up вопросов (уже отфильтрованных от «отказов»).
     """
+    if not FOLLOWUP_ENABLED:
+        logger.debug("Follow-up suggestions disabled via config, skipping generation")
+        return []
+
     # 1. базовая проверка на попытку prompt-injection
     cleaned_query, _ = sanitize_input(user_id=None, input_text=user_query)
 

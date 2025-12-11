@@ -72,6 +72,7 @@ The system follows a modular microservice-like pattern with clear separation of 
     ```bash
     TELEGRAM_BOT_TOKEN=your_token
     OPENAI_API_KEY=your_key
+    FOLLOWUP_ENABLED=true
     # Database Config
     DB_HOST=postgres
     DB_NAME=telegram_bot

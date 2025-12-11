@@ -181,6 +181,10 @@ def get_language_message(language: str, message_key: str) -> str:
         'ru': "Что-нибудь ещё?",
         'en': "Anything else?"
         },
+        'offtopic_response': {
+            'ru': "Извините, я могу отвечать только на вопросы из базы знаний. Могу подключить оператора, если нужна помощь.",
+            'en': "Sorry, I can respond only to questions covered by the knowledge base. I can connect you with a human if you need help."
+        },
         'error_occurred': {
             'ru': "Извините, произошла ошибка при обработке вашего запроса.",
             'en': "Sorry, an error occurred while processing your request."
