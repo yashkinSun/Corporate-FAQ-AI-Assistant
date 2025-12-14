@@ -41,7 +41,7 @@ The system follows a modular microservice-like pattern with clear separation of 
 1.  **Presentation Layer:** Handles Telegram webhooks and the Web Dashboard.
 2.  **Business Logic Layer:** Manages intent detection, dialogue state, and escalation rules.
 3.  **RAG Controller:**
-    *   *Ingestion:* Parses PDF/DOCX/Excel -> Chunks -> Embeddings -> ChromaDB.
+    *   *Ingestion:* Parses PDF/DOCX/Excel/Markdown -> Chunks -> Embeddings -> ChromaDB. Markdown импортируется без встроенного HTML; списки и таблицы нормализуются в плоский текст для стабильной индексации.
     *   *Retrieval:* User Query -> Vector Search -> LLM Reranker -> Context Assembly -> Response Generation.
 4.  **Data Layer:** Unified access via SQLAlchemy to PostgreSQL for transactional data.
 

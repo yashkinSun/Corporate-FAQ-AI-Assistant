@@ -1,10 +1,13 @@
 # store.py
 import os
 import chromadb
+import logging
 # ВАЖНО: для langchain==0.1.14 используем:
 from langchain.embeddings.openai import OpenAIEmbeddings
 from typing import List, Dict, Any
 from config import CHROMA_DB_PATH
+
+logger = logging.getLogger(__name__)
 
 client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
 
@@ -66,6 +69,20 @@ def _delete_ids_if_exist(ids: List[str], target_collection):
     existing_ids = existing.get("ids", [])
     if existing_ids:
         target_collection.delete(ids=existing_ids)
+
+
+def delete_document_chunks(source_path: str) -> None:
+    """Удаляет все чанки документа из основной коллекции по пути источника."""
+    try:
+        deleted_count = collection.delete(where={"source_path": source_path})
+        logger.info(
+            "Removed %s chunks for source_path=%s from Chroma collection %s",
+            deleted_count,
+            source_path,
+            COLLECTION_NAME,
+        )
+    except Exception as e:
+        logger.error(f"Failed to delete chunks for {source_path} from Chroma: {e}")
 
 def get_similar_docs(query: str, k: int = 3) -> List[Dict[str, Any]]:
     """

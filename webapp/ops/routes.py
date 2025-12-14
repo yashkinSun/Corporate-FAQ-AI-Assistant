@@ -29,7 +29,19 @@ from bot.telegram_bot import bot # Moved import
 
 # Imports for RAG indexing (Problem 2)
 from retrieval.doc_parser import parse_document
-from retrieval.store import store_document_chunks
+from retrieval.store import delete_document_chunks, store_document_chunks
+
+ALLOWED_EXTENSIONS = {
+    ".txt",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".csv",
+    ".xls",
+    ".xlsx",
+    ".md",
+    ".markdown",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -373,6 +385,26 @@ def upload_document():
             logger.warning(f"Upload attempt with an invalid/empty secured filename from original: {uploaded_file.filename}")
             return jsonify({'message': 'Invalid filename after securing.'}), 400
 
+        # Валидация расширения
+        file_ext = os.path.splitext(filename)[1].lower()
+        if file_ext not in ALLOWED_EXTENSIONS:
+            logger.warning(
+                "Upload attempt with unsupported extension %s for file '%s'",
+                file_ext,
+                filename,
+            )
+            return (
+                jsonify({
+                    'message': 'Unsupported file type',
+                    'error': (
+                        'Supported formats: TXT, PDF, DOC/DOCX, CSV, '
+                        'XLS/XLSX, MD/MARKDOWN'
+                    ),
+                    'supported_extensions': sorted(ALLOWED_EXTENSIONS),
+                }),
+                400,
+            )
+
         # Подготовка пути для сохранения
         os.makedirs(DOCUMENTS_PATH, exist_ok=True)
         dest_path = os.path.join(DOCUMENTS_PATH, filename)
@@ -453,9 +485,14 @@ def upload_document():
             logger.info(f"Parsing and indexing document: {dest_path}")
             content = parse_document(dest_path)
             if content:
+                logger.info(
+                    "Parsed %s characters from %s before chunking and storage",
+                    len(content),
+                    dest_path,
+                )
                 store_document_chunks(content, dest_path)
                 indexing_success = True
-                logger.info(f"Successfully indexed {len(content)} chunks for {dest_path}")
+                logger.info(f"Successfully indexed document content for {dest_path}")
             else:
                 logger.warning(f"No content parsed from {dest_path}, skipping indexing.")
         except Exception as idx_err:
@@ -602,6 +639,13 @@ def list_documents():
                 for doc_id, doc_path in all_db_docs:
                     if doc_path not in synced_paths:
                         logger.info(f"Document path '{doc_path}' (ID: {doc_id}) not found in filesystem. Removing from DB.")
+                        try:
+                            delete_document_chunks(doc_path)
+                        except Exception as cleanup_err:
+                            logger.error(
+                                f"Failed to delete Chroma chunks for missing file {doc_path}: {cleanup_err}",
+                                exc_info=True,
+                            )
                         doc_to_delete = db.query(Document).get(doc_id)
                         if doc_to_delete:
                             db.delete(doc_to_delete)
@@ -712,11 +756,19 @@ def delete_document_file(doc_id):
                 file_deleted_successfully = True  # If file is not there, we can still delete the DB record
 
             if file_deleted_successfully:
+                try:
+                    delete_document_chunks(doc_instance.path)
+                except Exception as e_cleanup:
+                    logger.error(
+                        f"Failed to remove Chroma chunks for doc_id {doc_id} at {doc_instance.path}: {e_cleanup}",
+                        exc_info=True,
+                    )
+                    db.rollback()
+                    return jsonify({'error': 'Failed to delete document embeddings', 'details': str(e_cleanup)}), 500
+
                 db.delete(doc_instance)
                 db.commit()
                 logger.info(f"Successfully deleted document record from DB: id={doc_id}")
-                # TODO: Consider if RAG index for this document should also be cleaned up.
-                # This might require a function in retrieval.store to remove chunks by document path.
                 return jsonify({'message': 'Document deleted successfully'}), 200
             else:
                 # This case should ideally not be reached if logic above is correct

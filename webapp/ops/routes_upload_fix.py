@@ -29,6 +29,18 @@ from bot.telegram_bot import bot
 from retrieval.doc_parser import parse_document
 from retrieval.store import store_document_chunks
 
+ALLOWED_EXTENSIONS = {
+    ".txt",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".csv",
+    ".xls",
+    ".xlsx",
+    ".md",
+    ".markdown",
+}
+
 logger = logging.getLogger(__name__)
 
 ops_bp = Blueprint('ops', __name__)
@@ -87,6 +99,26 @@ def upload_document():
         if not filename:
             logger.warning(f"Upload attempt with an invalid/empty secured filename from original: {uploaded_file.filename}")
             return jsonify({'message': 'Invalid filename after securing.'}), 400
+
+        # Валидация расширения
+        file_ext = os.path.splitext(filename)[1].lower()
+        if file_ext not in ALLOWED_EXTENSIONS:
+            logger.warning(
+                "Upload attempt with unsupported extension %s for file '%s'",
+                file_ext,
+                filename,
+            )
+            return (
+                jsonify({
+                    'message': 'Unsupported file type',
+                    'error': (
+                        'Supported formats: TXT, PDF, DOC/DOCX, CSV, '
+                        'XLS/XLSX, MD/MARKDOWN'
+                    ),
+                    'supported_extensions': sorted(ALLOWED_EXTENSIONS),
+                }),
+                400,
+            )
 
         # Подготовка пути для сохранения
         os.makedirs(DOCUMENTS_PATH, exist_ok=True)
@@ -168,9 +200,14 @@ def upload_document():
             logger.info(f"Parsing and indexing document: {dest_path}")
             content = parse_document(dest_path)
             if content:
+                logger.info(
+                    "Parsed %s characters from %s before chunking and storage",
+                    len(content),
+                    dest_path,
+                )
                 store_document_chunks(content, dest_path)
                 indexing_success = True
-                logger.info(f"Successfully indexed {len(content)} chunks for {dest_path}")
+                logger.info(f"Successfully indexed document content for {dest_path}")
             else:
                 logger.warning(f"No content parsed from {dest_path}, skipping indexing.")
         except Exception as idx_err:
