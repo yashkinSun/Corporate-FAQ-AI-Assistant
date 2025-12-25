@@ -20,6 +20,16 @@ Enterprise-level Telegram support bot designed to automate customer service usin
 
 ---
 
+## 🧠 New Feature: Context Memory
+
+The latest version introduces a Redis-based context memory feature. This allows the bot to "remember" previous messages in a conversation and provide more relevant answers to follow-up questions.
+
+- **Toggle:** Enabled/disabled via the `CONTEXT_MEMORY_ENABLED` environment variable.
+- **Clear Context:** Users can reset their conversation history with the `/clear` command.
+- **Configuration:** TTL and max message count are configurable through environment variables.
+
+---
+
 ## 🛠 Tech Stack
 
 | Component | Technology | Description |

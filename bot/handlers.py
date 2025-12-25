@@ -9,10 +9,11 @@ from typing import Dict, Any, Optional, Tuple, List
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from config import CONFIDENCE_THRESHOLD, FOLLOWUP_ENABLED
+from config import CONFIDENCE_THRESHOLD, FOLLOWUP_ENABLED, CONTEXT_MEMORY_ENABLED
 from utils.input_sanitization import sanitize_input, detect_language, is_supported_language
 from utils.language_detection import detect_and_set_language, get_language_message
 from utils.followup_manager import get_followup_suggestions
+from utils.context_memory import clear_context
 from utils.message_utils import truncate_message
 from utils.greeting_detector import is_greeting
 from utils.rate_limit import telegram_rate_limit
@@ -63,6 +64,36 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # Отправляем приветственное сообщение на соответствующем языке
     await update.message.reply_text(get_language_message(language, 'welcome'))
+
+
+async def clear_context_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Хэндлер для команды /clear
+    Очищает историю диалога пользователя (контекстную память).
+    Позволяет начать диалог с чистого листа.
+    """
+    user_id = update.effective_user.id
+    language = context.user_data.get("lang", "ru")
+    
+    logger.info(f"[CLEAR] User {user_id} requested context clear")
+    
+    if not CONTEXT_MEMORY_ENABLED:
+        # Если контекстная память отключена, сообщаем пользователю
+        message = get_language_message(language, 'context_memory_disabled')
+        await update.message.reply_text(message)
+        return
+    
+    # Пытаемся очистить контекст
+    success = clear_context(user_id)
+    
+    if success:
+        message = get_language_message(language, 'context_cleared')
+        logger.info(f"[CLEAR] Context cleared successfully for user {user_id}")
+    else:
+        message = get_language_message(language, 'context_clear_error')
+        logger.warning(f"[CLEAR] Failed to clear context for user {user_id}")
+    
+    await update.message.reply_text(message)
 
 @telegram_rate_limit
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -6,6 +6,6 @@ def generate_password_hash(password: str) -> str:
     return hashed.decode('utf-8')
 
 if __name__ == "__main__":
-    password = "omeunomeemike" 
+    password = "yourpasswordhere" 
     password_hash = generate_password_hash(password)
     print(f"Хеш пароля: {password_hash}")

@@ -43,6 +43,24 @@ class Settings(BaseModel):
     REDIS_DB: int = Field(default=0)
     REDIS_PASSWORD: str = Field(default="")
 
+    # Настройки для контекстной памяти (Redis)
+    CONTEXT_MEMORY_ENABLED: bool = Field(
+        default=True,
+        description="Включить/отключить контекстную память для follow-up вопросов"
+    )
+    CONTEXT_MEMORY_MAX_MESSAGES: int = Field(
+        default=10,
+        description="Максимальное количество сообщений в контексте пользователя"
+    )
+    CONTEXT_MEMORY_TTL_DAYS: int = Field(
+        default=7,
+        description="Время жизни контекста в днях (автоматическая очистка)"
+    )
+    CONTEXT_MEMORY_REDIS_DB: int = Field(
+        default=1,
+        description="Номер базы данных Redis для контекстной памяти (отдельно от rate-limiting)"
+    )
+
     # Настройки для rate-limiting
     RATE_LIMIT_ENABLED: bool = Field(default=True)
     TELEGRAM_RATE_LIMIT_SECONDS: int = Field(default=5)
@@ -69,8 +87,8 @@ class Settings(BaseModel):
     RERANKING_ENABLED: bool = Field(default=True)
     RERANKING_MODEL: str = Field(default="gpt-4o-mini")
     RERANKING_CACHE_SIZE: int = Field(default=1000)
-    RERANKING_MIN_SCORE: float = Field(default=4.0)
-    RERANKING_MAX_CHUNKS: int = Field(default=3)
+    RERANKING_MIN_SCORE: float = Field(default=3.0)
+    RERANKING_MAX_CHUNKS: int = Field(default=5)
     RERANKING_INITIAL_CHUNKS: int = Field(default=10)
 
     # Настройки для веб-интерфейса
@@ -122,6 +140,8 @@ class Settings(BaseModel):
         "ESCALATION_COOLDOWN_MINUTES",
         "WEB_PORT",
         "PG_PORT",
+        "CONTEXT_MEMORY_MAX_MESSAGES",
+        "CONTEXT_MEMORY_TTL_DAYS",
     )
     @classmethod
     def ensure_positive(cls, value: int, field):
@@ -141,6 +161,13 @@ class Settings(BaseModel):
     def reranking_score_range(cls, value: float):
         if not 0 <= value <= 10:
             raise ValueError("RERANKING_MIN_SCORE должен быть в диапазоне от 0 до 10")
+        return value
+
+    @field_validator("CONTEXT_MEMORY_REDIS_DB")
+    @classmethod
+    def context_memory_db_range(cls, value: int):
+        if not 0 <= value <= 15:
+            raise ValueError("CONTEXT_MEMORY_REDIS_DB должен быть в диапазоне от 0 до 15")
         return value
 
     @model_validator(mode="after")
@@ -173,6 +200,12 @@ def _collect_env() -> dict[str, str]:
         "REDIS_PORT",
         "REDIS_DB",
         "REDIS_PASSWORD",
+        # Настройки контекстной памяти
+        "CONTEXT_MEMORY_ENABLED",
+        "CONTEXT_MEMORY_MAX_MESSAGES",
+        "CONTEXT_MEMORY_TTL_DAYS",
+        "CONTEXT_MEMORY_REDIS_DB",
+        # Rate-limiting
         "RATE_LIMIT_ENABLED",
         "TELEGRAM_RATE_LIMIT_SECONDS",
         "TELEGRAM_RATE_LIMIT_MAX_VIOLATIONS",
@@ -244,6 +277,12 @@ if REDIS_PASSWORD:
     REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 else:
     REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+# Настройки для контекстной памяти (Redis)
+CONTEXT_MEMORY_ENABLED = SETTINGS.CONTEXT_MEMORY_ENABLED
+CONTEXT_MEMORY_MAX_MESSAGES = SETTINGS.CONTEXT_MEMORY_MAX_MESSAGES
+CONTEXT_MEMORY_TTL_DAYS = SETTINGS.CONTEXT_MEMORY_TTL_DAYS
+CONTEXT_MEMORY_REDIS_DB = SETTINGS.CONTEXT_MEMORY_REDIS_DB
 
 # Настройки для rate-limiting
 RATE_LIMIT_ENABLED = SETTINGS.RATE_LIMIT_ENABLED

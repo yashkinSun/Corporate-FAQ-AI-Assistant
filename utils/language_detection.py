@@ -170,8 +170,8 @@ def get_language_message(language: str, message_key: str) -> str:
         'en': "Your question: "
         },
         'greeting_full': {
-        'ru': "Здравтсвуйте!, я - Veliro, чат-бот поддержки ООО Транс-Логистика. Готов помочь вам с различными вопросами",
-        'en': "Greetings! I'm Veliro - support bot from OOO Trans-Logistica company. I'me here to help you with your questions"
+        'ru': "Здравствуйте!, я - Veliro, чат-бот поддержки PalmBit LLC. Готов помочь вам с различными вопросами",
+        'en': "Greetings! I'm Veliro - support bot from PalmBit company. I'me here to help you with your questions"
         },
         'language_switched': {
         'ru': "Чат переключен на русский язык.",
@@ -188,6 +188,18 @@ def get_language_message(language: str, message_key: str) -> str:
         'error_occurred': {
             'ru': "Извините, произошла ошибка при обработке вашего запроса.",
             'en': "Sorry, an error occurred while processing your request."
+        },
+        'context_cleared': {
+            'ru': "✅ История диалога очищена. Можете начать новый разговор.",
+            'en': "✅ Conversation history cleared. You can start a new conversation."
+        },
+        'context_clear_error': {
+            'ru': "⚠️ Не удалось очистить историю. Пожалуйста, попробуйте позже.",
+            'en': "⚠️ Could not clear history. Please try again later."
+        },
+        'context_memory_disabled': {
+            'ru': "ℹ️ Функция истории диалога в данный момент отключена.",
+            'en': "ℹ️ Conversation history feature is currently disabled."
         }
     }
     
